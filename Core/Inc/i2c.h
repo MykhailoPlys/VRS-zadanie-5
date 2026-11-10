@@ -39,6 +39,11 @@ extern "C" {
 void MX_I2C1_Init(void);
 
 /* USER CODE BEGIN Prototypes */
+/* 7-bitova adresa; 1 az 254 bajtov. 0=OK, -1=argument, -2=NACK,
+   -3=chyba zbernice, -4=timeout. Volat iba z hlavnej slucky. */
+int i2c_read(uint8_t address, uint8_t reg, uint8_t *data, uint16_t length);
+int i2c_write(uint8_t address, uint8_t reg, const uint8_t *data, uint16_t length);
+
 
 /* USER CODE END Prototypes */
 

@@ -54,7 +54,7 @@ void MX_I2C1_Init(void)
 
   /* I2C1 interrupt Init */
   NVIC_SetPriority(I2C1_EV_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
-  NVIC_EnableIRQ(I2C1_EV_IRQn);
+  NVIC_DisableIRQ(I2C1_EV_IRQn);
 
   /* USER CODE BEGIN I2C1_Init 1 */
 
@@ -76,12 +76,85 @@ void MX_I2C1_Init(void)
   LL_I2C_Init(I2C1, &I2C_InitStruct);
   LL_I2C_SetOwnAddress2(I2C1, 0, LL_I2C_OWNADDRESS2_NOMASK);
   /* USER CODE BEGIN I2C1_Init 2 */
+  LL_I2C_Enable(I2C1);
 
   /* USER CODE END I2C1_Init 2 */
 
 }
 
 /* USER CODE BEGIN 1 */
+
+#define I2C_POLL_LIMIT 80000U
+
+static int i2c_wait(uint32_t flag)
+{
+  uint32_t budget = I2C_POLL_LIMIT;
+  do {
+    uint32_t status = I2C1->ISR;
+    if (status & I2C_ISR_NACKF) return -2;
+    if (status & (I2C_ISR_BERR | I2C_ISR_ARLO | I2C_ISR_OVR)) return -3;
+    if (status & flag) return 0;
+  } while (--budget);
+  return -4;
+}
+
+static int i2c_finish(int result)
+{
+  if (result) {
+    /* Po chybe ukoncime prenos, pri strate arbitraze neovladame zbernicu. */
+    if (!(I2C1->ISR & I2C_ISR_ARLO)) LL_I2C_GenerateStopCondition(I2C1);
+    uint32_t budget = I2C_POLL_LIMIT;
+    while (!(I2C1->ISR & I2C_ISR_STOPF) && --budget) {}
+    LL_I2C_Disable(I2C1);
+    LL_I2C_Enable(I2C1);
+  }
+  I2C1->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF | I2C_ICR_BERRCF | I2C_ICR_ARLOCF | I2C_ICR_OVRCF;
+  I2C1->CR2 = 0;
+  return result;
+}
+
+static int i2c_begin(uint8_t address, const void *data, uint16_t length)
+{
+  if (address > 0x7f || address < 8 || !data || !length || length > 254) return -1;
+  uint32_t budget = I2C_POLL_LIMIT;
+  while (LL_I2C_IsActiveFlag_BUSY(I2C1)) {
+    if (--budget == 0) return -4;
+  }
+  I2C1->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF | I2C_ICR_BERRCF | I2C_ICR_ARLOCF | I2C_ICR_OVRCF;
+  return 0;
+}
+
+int i2c_read(uint8_t address, uint8_t reg, uint8_t *data, uint16_t length)
+{
+  int result = i2c_begin(address, data, length);
+  if (result) return result;
+  LL_I2C_HandleTransfer(I2C1, (uint32_t)address << 1, LL_I2C_ADDRSLAVE_7BIT, 1, LL_I2C_MODE_SOFTEND, LL_I2C_GENERATE_START_WRITE);
+  result = i2c_wait(I2C_ISR_TXIS);
+  if (result) return i2c_finish(result);
+  LL_I2C_TransmitData8(I2C1, reg);
+  result = i2c_wait(I2C_ISR_TC);
+  if (result) return i2c_finish(result);
+  LL_I2C_HandleTransfer(I2C1, (uint32_t)address << 1, LL_I2C_ADDRSLAVE_7BIT, length, LL_I2C_MODE_AUTOEND, LL_I2C_GENERATE_START_READ);
+  for (uint16_t i = 0; i < length; ++i) {
+    result = i2c_wait(I2C_ISR_RXNE);
+    if (result) return i2c_finish(result);
+    data[i] = LL_I2C_ReceiveData8(I2C1);
+  }
+  return i2c_finish(i2c_wait(I2C_ISR_STOPF));
+}
+
+int i2c_write(uint8_t address, uint8_t reg, const uint8_t *data, uint16_t length)
+{
+  int result = i2c_begin(address, data, length);
+  if (result) return result;
+  LL_I2C_HandleTransfer(I2C1, (uint32_t)address << 1, LL_I2C_ADDRSLAVE_7BIT, length + 1U, LL_I2C_MODE_AUTOEND, LL_I2C_GENERATE_START_WRITE);
+  for (uint16_t i = 0; i <= length; ++i) {
+    result = i2c_wait(I2C_ISR_TXIS);
+    if (result) return i2c_finish(result);
+    LL_I2C_TransmitData8(I2C1, i == 0 ? reg : data[i - 1]);
+  }
+  return i2c_finish(i2c_wait(I2C_ISR_STOPF));
+}
 
 /* USER CODE END 1 */
 
