@@ -1,0 +1,17 @@
+/.metadata/
+
+/Debug/
+/Release/
+/build/
+*.o
+*.d
+*.elf
+*.map
+*.bin
+*.hex
+*.su
+*.list
+*.tmp
+*.swp
+.vscode/.browse*
+__pycache__/
