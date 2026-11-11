@@ -18,13 +18,19 @@ int hts221_register_bus(hts221_t *dev, sensor_read_fn read, sensor_write_fn writ
 
 int hts221_read_register(hts221_t *dev, uint8_t reg, uint8_t *data, uint16_t length)
 {
-  if (!dev || !dev->bus.read || !data || !length || length > 128 || reg > 0x7f || reg + length > 128) return SENSOR_ARGUMENT;
+  if (!dev || !dev->bus.read || !data) return SENSOR_ARGUMENT;
+  if (!length || length > 128 || reg > 0x7f || reg + length > 128) {
+    return SENSOR_ARGUMENT;
+  }
   return dev->bus.read(HTS221_ADDRESS, reg | (length > 1 ? HTS221_AUTO_INCREMENT : 0), data, length);
 }
 
 int hts221_write_register(hts221_t *dev, uint8_t reg, const uint8_t *data, uint16_t length)
 {
-  if (!dev || !dev->bus.write || !data || !length || length > 128 || reg > 0x7f || reg + length > 128) return SENSOR_ARGUMENT;
+  if (!dev || !dev->bus.write || !data) return SENSOR_ARGUMENT;
+  if (!length || length > 128 || reg > 0x7f || reg + length > 128) {
+    return SENSOR_ARGUMENT;
+  }
   return dev->bus.write(HTS221_ADDRESS, reg | (length > 1 ? HTS221_AUTO_INCREMENT : 0), data, length);
 }
 
@@ -55,8 +61,10 @@ int hts221_init(hts221_t *dev)
   dev->h1_out = signed16(&cal[10]);
   dev->t0_out = signed16(&cal[12]);
   dev->t1_out = signed16(&cal[14]);
-  if (dev->h0_out == dev->h1_out || dev->t0_out == dev->t1_out || dev->h0 >= dev->h1 || dev->h1 > 100.0f || dev->t0 >= dev->t1)
+  if (dev->h0_out == dev->h1_out || dev->t0_out == dev->t1_out ||
+      dev->h0 >= dev->h1 || dev->h1 > 100.0f || dev->t0 >= dev->t1) {
     return SENSOR_CALIBRATION;
+  }
   value = HTS221_POWER_ON | HTS221_BDU | HTS221_ODR_1HZ;
   result = hts221_write_register(dev, HTS221_CTRL_REG1, &value, 1);
   if (!result) dev->initialized = 1;

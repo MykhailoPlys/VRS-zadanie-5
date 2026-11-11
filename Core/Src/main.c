@@ -24,7 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "lps25hb.h"
+#include "lps22hb.h"
 #include "hts221.h"
 #include "weather.h"
 
@@ -101,12 +101,12 @@ int main(void)
   MX_I2C1_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  lps25hb_t pressure_sensor = {0};
-  lps25hb_register_bus(&pressure_sensor, i2c_read, i2c_write);
+  lps22hb_t pressure_sensor = {0};
+  lps22hb_register_bus(&pressure_sensor, i2c_read, i2c_write);
   hts221_t humidity_sensor = {0};
   hts221_register_bus(&humidity_sensor, i2c_read, i2c_write);
-  int configured = 0;
-  float reference = 0.0f;
+  int sensors_ready = 0;
+  float reference_pressure = 0.0f;
   LL_mDelay(100);
 
   /* USER CODE END 2 */
@@ -118,26 +118,29 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if (!configured) {
-      int pressure_status = lps25hb_init(&pressure_sensor);
+    if (!sensors_ready) {
+      int pressure_status = lps22hb_init(&pressure_sensor);
       int humidity_status = hts221_init(&humidity_sensor);
-      configured = pressure_status == 0 && humidity_status == 0;
+      sensors_ready = pressure_status == SENSOR_OK && humidity_status == SENSOR_OK;
       LL_mDelay(1100);
     }
-    if (configured) {
+    if (sensors_ready) {
       float pressure, temperature, humidity, altitude;
-      int ps = lps25hb_read_pressure(&pressure_sensor, &pressure);
-      int ts = hts221_read_temperature(&humidity_sensor, &temperature);
-      int hs = hts221_read_humidity(&humidity_sensor, &humidity);
-      if (ps == 0 && ts == 0 && hs == 0) {
-        if (reference == 0.0f) reference = pressure;
+      int pressure_status = lps22hb_read_pressure(&pressure_sensor, &pressure);
+      int temperature_status = hts221_read_temperature(&humidity_sensor, &temperature);
+      int humidity_status = hts221_read_humidity(&humidity_sensor, &humidity);
+      if (pressure_status == SENSOR_OK && temperature_status == SENSOR_OK &&
+          humidity_status == SENSOR_OK) {
+        if (reference_pressure == 0.0f) reference_pressure = pressure;
         char csv[96];
-        if (relative_altitude(pressure, reference, &altitude) == 0) {
+        if (relative_altitude(pressure, reference_pressure, &altitude) == 0) {
           int length = weather_csv(csv, sizeof csv, temperature, humidity, pressure, altitude);
           if (length > 0) (void)usart_send(csv, (size_t)length);
         }
-      } else if ((ps && ps != SENSOR_NOT_READY) || (ts && ts != SENSOR_NOT_READY) || (hs && hs != SENSOR_NOT_READY)) {
-        configured = 0;
+      } else if ((pressure_status != SENSOR_OK && pressure_status != SENSOR_NOT_READY) ||
+                 (temperature_status != SENSOR_OK && temperature_status != SENSOR_NOT_READY) ||
+                 (humidity_status != SENSOR_OK && humidity_status != SENSOR_NOT_READY)) {
+        sensors_ready = 0;
       }
     }
     /* Pri chybe neposielame stare ani nahradne merania. */

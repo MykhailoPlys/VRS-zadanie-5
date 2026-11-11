@@ -52,9 +52,6 @@ void MX_I2C1_Init(void)
   /* Peripheral clock enable */
   LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_I2C1);
 
-  /* I2C1 interrupt Init */
-  NVIC_SetPriority(I2C1_EV_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
-  NVIC_DisableIRQ(I2C1_EV_IRQn);
 
   /* USER CODE BEGIN I2C1_Init 1 */
 
@@ -76,6 +73,7 @@ void MX_I2C1_Init(void)
   LL_I2C_Init(I2C1, &I2C_InitStruct);
   LL_I2C_SetOwnAddress2(I2C1, 0, LL_I2C_OWNADDRESS2_NOMASK);
   /* USER CODE BEGIN I2C1_Init 2 */
+  NVIC_DisableIRQ(I2C1_EV_IRQn);
 
   /* USER CODE END I2C1_Init 2 */
 
@@ -117,7 +115,7 @@ static int i2c_begin(uint8_t address, const void *data, uint16_t length)
   if (address > 0x7f || address < 8 || !data || !length || length > 254) return -1;
   uint32_t budget = I2C_POLL_LIMIT;
   while (LL_I2C_IsActiveFlag_BUSY(I2C1)) {
-    if (--budget == 0) return -4;
+    if (--budget == 0) return i2c_finish(-4);
   }
   I2C1->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF | I2C_ICR_BERRCF | I2C_ICR_ARLOCF | I2C_ICR_OVRCF;
   return 0;
