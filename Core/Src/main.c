@@ -25,6 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "lps25hb.h"
+#include "hts221.h"
 
 /* USER CODE END Includes */
 
@@ -101,7 +102,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
   lps25hb_t pressure_sensor = {0};
   lps25hb_register_bus(&pressure_sensor, i2c_read, i2c_write);
-  int pressure_configured = 0;
+  hts221_t humidity_sensor = {0};
+  hts221_register_bus(&humidity_sensor, i2c_read, i2c_write);
+  int configured = 0;
   LL_mDelay(100);
 
   /* USER CODE END 2 */
@@ -113,14 +116,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if (!pressure_configured) {
-      pressure_configured = lps25hb_init(&pressure_sensor) == SENSOR_OK;
+    if (!configured) {
+      int ps = lps25hb_init(&pressure_sensor);
+      int hs = hts221_init(&humidity_sensor);
+      configured = ps == SENSOR_OK && hs == SENSOR_OK;
       LL_mDelay(1100);
     }
-    if (pressure_configured) {
-      float pressure;
-      int status = lps25hb_read_pressure(&pressure_sensor, &pressure);
-      if (status && status != SENSOR_NOT_READY) pressure_configured = 0;
+    if (configured) {
+      float pressure, temperature, humidity;
+      int ps = lps25hb_read_pressure(&pressure_sensor, &pressure);
+      int ts = hts221_read_temperature(&humidity_sensor, &temperature);
+      int hs = hts221_read_humidity(&humidity_sensor, &humidity);
+      if ((ps && ps != SENSOR_NOT_READY) || (ts && ts != SENSOR_NOT_READY) || (hs && hs != SENSOR_NOT_READY)) configured = 0;
     }
     LL_mDelay(1000);
   }
