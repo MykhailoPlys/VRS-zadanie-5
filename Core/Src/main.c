@@ -26,6 +26,7 @@
 /* USER CODE BEGIN Includes */
 #include "lps25hb.h"
 #include "hts221.h"
+#include "weather.h"
 
 /* USER CODE END Includes */
 
@@ -105,6 +106,7 @@ int main(void)
   hts221_t humidity_sensor = {0};
   hts221_register_bus(&humidity_sensor, i2c_read, i2c_write);
   int configured = 0;
+  float reference = 0.0f;
   LL_mDelay(100);
 
   /* USER CODE END 2 */
@@ -117,18 +119,28 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     if (!configured) {
-      int ps = lps25hb_init(&pressure_sensor);
-      int hs = hts221_init(&humidity_sensor);
-      configured = ps == SENSOR_OK && hs == SENSOR_OK;
+      int pressure_status = lps25hb_init(&pressure_sensor);
+      int humidity_status = hts221_init(&humidity_sensor);
+      configured = pressure_status == 0 && humidity_status == 0;
       LL_mDelay(1100);
     }
     if (configured) {
-      float pressure, temperature, humidity;
+      float pressure, temperature, humidity, altitude;
       int ps = lps25hb_read_pressure(&pressure_sensor, &pressure);
       int ts = hts221_read_temperature(&humidity_sensor, &temperature);
       int hs = hts221_read_humidity(&humidity_sensor, &humidity);
-      if ((ps && ps != SENSOR_NOT_READY) || (ts && ts != SENSOR_NOT_READY) || (hs && hs != SENSOR_NOT_READY)) configured = 0;
+      if (ps == 0 && ts == 0 && hs == 0) {
+        if (reference == 0.0f) reference = pressure;
+        char csv[96];
+        if (relative_altitude(pressure, reference, &altitude) == 0) {
+          int length = weather_csv(csv, sizeof csv, temperature, humidity, pressure, altitude);
+          if (length > 0) (void)usart_send(csv, (size_t)length);
+        }
+      } else if ((ps && ps != SENSOR_NOT_READY) || (ts && ts != SENSOR_NOT_READY) || (hs && hs != SENSOR_NOT_READY)) {
+        configured = 0;
+      }
     }
+    /* Pri chybe neposielame stare ani nahradne merania. */
     LL_mDelay(1000);
   }
   /* USER CODE END 3 */

@@ -74,6 +74,23 @@ void MX_USART2_UART_Init(void)
 }
 
 /* USER CODE BEGIN 1 */
+int usart_send(const char *data, size_t length)
+{
+  if (!data || !length || length > 96) return -1;
+  for (size_t i = 0; i < length; ++i) {
+    uint32_t budget = 80000;
+    while (!LL_USART_IsActiveFlag_TXE(USART2)) {
+      if (--budget == 0) return -1;
+    }
+    LL_USART_TransmitData8(USART2, (uint8_t)data[i]);
+  }
+  uint32_t budget = 80000;
+  while (!LL_USART_IsActiveFlag_TC(USART2)) {
+    if (--budget == 0) return -1;
+  }
+  return 0;
+}
+
 
 /* USER CODE END 1 */
 

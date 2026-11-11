@@ -29,6 +29,7 @@ extern "C" {
 #include "main.h"
 
 /* USER CODE BEGIN Includes */
+#include <stddef.h>
 
 /* USER CODE END Includes */
 
@@ -39,6 +40,7 @@ extern "C" {
 void MX_USART2_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
+int usart_send(const char *data, size_t length);
 
 /* USER CODE END Prototypes */
 
